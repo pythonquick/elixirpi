@@ -1,62 +1,51 @@
 defmodule Elixirpi do
-  alias Decimal, as: D
-  @d1 D.new(1)
-  @d2 D.new(2)
-  @d4 D.new(4)
-  @d5 D.new(5)
-  @d6 D.new(6)
-  @d8 D.new(8)
-  @d16 D.new(16)
 
-  def term_slow(n) do
-    D.div(D.new(1), D.new(n) |> D.mult(D.new(n+1)) |> D.mult(D.new(n+2)))
+  def main(args) do
+    args |> parse_args |> process
   end
 
-  def run_slow do
-    D.set_context(%D.Context{D.get_context | precision: 100}) 
-
-    pi = 1..10000
-      |> Enum.reduce(D.new(0), fn(i, acc) -> acc |> D.add(term_slow(i*4-2)) |> D.sub(term_slow(i*4)) end)
-      |> D.mult(D.new(4))
-
-
-    pi = D.add(pi, D.new(3))
-    IO.puts "PI is "
-    IO.inspect pi
+  def show_usage() do
+    IO.puts "provide command-line switches:"
+    IO.puts "--mode : either server or worker. Start one server, start one or more workers"
+    IO.puts "--name : the node name, e.g. master@myhost.local"
+    IO.puts "--mastenode : specify this switch only when --mode set to worker"
   end
 
-
-  def positive_pow(_num, 0) do
-    @d1
+  def process([]) do
+    show_usage()
   end
 
-  def positive_pow(num, exp) do
-    Enum.reduce(1..exp, @d1, fn(_, acc) -> D.mult(acc, num) end)
+  def process(options) do
+    case options do
+      [mode: "server", name: node_name] ->
+        start_server(node_name)
+      [mode: "worker", name: node_name, masternode: master_node_name] ->
+        start_worker(node_name, master_node_name)
+      _ ->
+        show_usage()
+    end
   end
 
-  def negative_pow(num, exp) do
-    D.div(@d1, positive_pow(num, exp))
+  defp parse_args(args) do
+    {options, _, _} = OptionParser.parse(args,
+      switches: [
+        mode: :string,
+        name: :string,
+        masternode: :string
+      ]
+    )
+    options
   end
 
-  def term(digit_position) do
-    digit_position_decimal = D.new(digit_position)
-    eight_times_digit_pos = D.mult(@d8, digit_position_decimal)
-    D.div(@d4, eight_times_digit_pos |> D.add(@d1))
-    |> D.sub(D.div(@d2, eight_times_digit_pos |> D.add(@d4)))
-    |> D.sub(D.div(@d1, eight_times_digit_pos |> D.add(@d5)))
-    |> D.sub(D.div(@d1, eight_times_digit_pos |> D.add(@d6)))
-    |> D.mult(negative_pow(@d16, digit_position))
+  defp start_server(node_name) do
+    Node.start String.to_atom(node_name)
+    Elixirpi.Collector.start()
   end
 
-
-  def run do
-    D.set_context(%D.Context{D.get_context | precision: 1000}) 
-
-    pi = Enum.reduce(0..750, D.new(0), fn(digit_pos, pi) -> D.add(term(digit_pos), pi) end)
-
-    IO.puts "PI is "
-    IO.inspect pi
+  defp start_worker(node_name, master_node_name) do
+    Node.start String.to_atom(node_name)
+    Node.connect String.to_atom(master_node_name)
+    :global.sync()
+    Elixirpi.Worker.run()
   end
-
-
 end

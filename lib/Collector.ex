@@ -3,7 +3,7 @@ defmodule Elixirpi.Collector do
   alias Decimal, as: D
   @process_name :collector_process_name
   @digit_batch_size 8
-  @target_hex_digits 5000
+  @target_hex_digits 10000
   @precision div(@target_hex_digits * 4, 3)
 
   def start do
@@ -13,6 +13,9 @@ defmodule Elixirpi.Collector do
     pi = D.new(0) # Initial value
     {:ok, pid} = GenServer.start_link(__MODULE__, {pi, digit_positions, exponent_cache})
     :global.register_name(@process_name, pid)
+
+    # Serve worker requests - do not exit
+    :timer.sleep(:infinity)
   end
 
   def init(args) do
@@ -21,7 +24,7 @@ defmodule Elixirpi.Collector do
 
   def handle_call(:next_digit_positions, _from, {pi, digit_positions, exponent_cache}) do
     {next_digits, remaining}  = Enum.split(digit_positions, @digit_batch_size)
-    IO.puts "next digits: #{inspect next_digits}"
+    output_progress(next_digits, pi)
     {:reply, {next_digits, exponent_cache}, {pi, remaining, exponent_cache}}
   end
 
@@ -36,6 +39,24 @@ defmodule Elixirpi.Collector do
     highest_sixteen_pow = if new_sixteen_exp > current_sixteen_exp, do: new_sixteen_pow, else: sixteen_pow
     updated_pi = D.add(pi, additional_term)
     {:noreply, {updated_pi, digit_positions, highest_sixteen_pow}}
+  end
+
+  def output_progress([], pi) do
+    IO.puts "No more digits to process."
+    if !File.exists?("pi.txt") do
+      IO.puts "writing pi.txt file"
+      {:ok, file} = File.open "pi.txt", [:write]
+      File.close file
+
+      {:ok, file} = File.open "pi.txt", [:write]
+      pi_string = D.to_string(pi, :normal)
+      IO.binwrite file, String.slice(pi_string, 0..@target_hex_digits+2)
+      File.close file
+    end
+  end
+
+  def output_progress(next_digits, _pi) do
+    IO.puts "Scheduling calculation of digit positions: #{inspect next_digits}"
   end
 
   def process_pid do

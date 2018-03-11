@@ -56,9 +56,7 @@ defmodule Elixirpi.Worker do
     end
   end
 
-  def run do
-    Node.connect :"master@gmac.local"
-    :global.sync()
+  def run() do
     precision = Collector.precision
     keep_processing_digits(precision)
   end
