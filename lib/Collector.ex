@@ -7,7 +7,6 @@ defmodule Elixirpi.Collector do
   @precision div(@target_hex_digits * 4, 3)
 
   def start do
-    D.set_context(%D.Context{D.get_context | precision: @precision}) 
     digit_positions = Enum.reduce(@target_hex_digits..0, [], &([&1 | &2]))
     exponent_cache = {0, D.new(1)} # keep track of highest sixteen-power. sixteen to power 0 is 1
     pi = D.new(0) # Initial value
@@ -22,14 +21,14 @@ defmodule Elixirpi.Collector do
     {:ok, args}
   end
 
+  ##############################################################################
+  # GenServer callbacks
+  ##############################################################################
+
   def handle_call(:next_digit_positions, _from, {pi, digit_positions, exponent_cache}) do
     {next_digits, remaining}  = Enum.split(digit_positions, @digit_batch_size)
     output_progress(next_digits, pi)
     {:reply, {next_digits, exponent_cache}, {pi, remaining, exponent_cache}}
-  end
-
-  def handle_call(:pi, _from, {pi, digit_positions, exponent_cache}) do
-    { :reply, pi, {pi, digit_positions, exponent_cache} }
   end
 
   def handle_cast({:update_pi, additional_term, new_sixteen_pow}, {pi, digit_positions, sixteen_pow}) do
@@ -41,27 +40,9 @@ defmodule Elixirpi.Collector do
     {:noreply, {updated_pi, digit_positions, highest_sixteen_pow}}
   end
 
-  def output_progress([], pi) do
-    IO.puts "No more digits to process."
-    if !File.exists?("pi.txt") do
-      IO.puts "writing pi.txt file"
-      {:ok, file} = File.open "pi.txt", [:write]
-      File.close file
-
-      {:ok, file} = File.open "pi.txt", [:write]
-      pi_string = D.to_string(pi, :normal)
-      IO.binwrite file, String.slice(pi_string, 0..@target_hex_digits+2)
-      File.close file
-    end
-  end
-
-  def output_progress(next_digits, _pi) do
-    IO.puts "Scheduling calculation of digit positions: #{inspect next_digits}"
-  end
-
-  def process_pid do
-    :global.whereis_name(@process_name)
-  end
+  ##############################################################################
+  # Public functions. To be used by the Worker process:
+  ##############################################################################
 
   def next_digits do
     GenServer.call(process_pid(), :next_digit_positions)
@@ -75,7 +56,27 @@ defmodule Elixirpi.Collector do
     @precision
   end
 
-  def pi do
-    GenServer.call(process_pid(), :pi)
+  def process_pid do
+    :global.whereis_name(@process_name)
   end
+
+  ##############################################################################
+  # Private helper functions:
+  ##############################################################################
+  defp output_progress([], pi) do
+    IO.puts "No more digits to process."
+    if !File.exists?("pi.txt") do
+      IO.puts "Writing pi.txt"
+      {:ok, file} = File.open "pi.txt", [:write]
+      pi_string = D.to_string(pi, :normal)
+      IO.binwrite file, String.slice(pi_string, 0..@target_hex_digits+2)
+      File.close file
+    end
+  end
+
+  defp output_progress(next_digits, _pi) do
+    IO.puts "Scheduling calculation of digit positions: #{inspect next_digits}"
+  end
+
+
 end

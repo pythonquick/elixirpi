@@ -8,7 +8,7 @@ defmodule Elixirpi do
     IO.puts "provide command-line switches:"
     IO.puts "--mode : either server or worker. Start one server, start one or more workers"
     IO.puts "--name : the node name, e.g. master@myhost.local"
-    IO.puts "--mastenode : specify this switch only when --mode set to worker"
+    IO.puts "--masternode : specify this switch only when --mode set to worker"
   end
 
   def process([]) do
