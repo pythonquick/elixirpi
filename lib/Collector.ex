@@ -3,7 +3,7 @@ defmodule Elixirpi.Collector do
   alias Decimal, as: D
   @process_name :collector_process_name
   @digit_batch_size 8
-  @target_hex_digits 10000
+  @target_hex_digits 1000
   @precision div(@target_hex_digits * 4, 3)
 
   def start do
@@ -14,11 +14,8 @@ defmodule Elixirpi.Collector do
     :global.register_name(@process_name, pid)
 
     # Serve worker requests - do not exit
+    IO.puts "Started server. Target is pi to #{@target_hex_digits} decimal places"
     :timer.sleep(:infinity)
-  end
-
-  def init(args) do
-    {:ok, args}
   end
 
   ##############################################################################
@@ -38,6 +35,10 @@ defmodule Elixirpi.Collector do
     highest_sixteen_pow = if new_sixteen_exp > current_sixteen_exp, do: new_sixteen_pow, else: sixteen_pow
     updated_pi = D.add(pi, additional_term)
     {:noreply, {updated_pi, digit_positions, highest_sixteen_pow}}
+  end
+
+  def init(args) do
+    {:ok, args}
   end
 
   ##############################################################################
@@ -75,7 +76,7 @@ defmodule Elixirpi.Collector do
   end
 
   defp output_progress(next_digits, _pi) do
-    IO.puts "Scheduling calculation of digit positions: #{inspect next_digits}"
+    IO.puts "Worker to calculate digit positions: #{inspect next_digits}"
   end
 
 
