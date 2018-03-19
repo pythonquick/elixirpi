@@ -8,9 +8,10 @@ defmodule Elixirpi.Collector do
 
   def start do
     digit_positions = Enum.reduce(@target_hex_digits..0, [], &([&1 | &2]))
+    digits_pending = []
     exponent_cache = {0, D.new(1)} # keep track of highest sixteen-power. sixteen to power 0 is 1
     pi = D.new(0) # Initial value
-    {:ok, pid} = GenServer.start_link(__MODULE__, {pi, digit_positions, exponent_cache})
+    {:ok, pid} = GenServer.start_link(__MODULE__, {pi, digit_positions, digits_pending, exponent_cache})
     :global.register_name(@process_name, pid)
 
     # Serve worker requests - do not exit
@@ -22,19 +23,28 @@ defmodule Elixirpi.Collector do
   # GenServer callbacks
   ##############################################################################
 
-  def handle_call(:next_digit_positions, _from, {pi, digit_positions, exponent_cache}) do
-    {next_digits, remaining}  = Enum.split(digit_positions, @digit_batch_size)
-    output_progress(next_digits, pi)
-    {:reply, {next_digits, exponent_cache}, {pi, remaining, exponent_cache}}
+  def handle_call(:next_digit_positions, _from, {pi, [], digits_pending, exponent_cache}) do
+    {next_digits, remaining}  = Enum.split(digits_pending, @digit_batch_size)
+    digits_pending = remaining ++ next_digits
+    output_progress(next_digits, digits_pending, pi)
+    {:reply, {next_digits, exponent_cache}, {pi, [], digits_pending, exponent_cache}}
   end
 
-  def handle_cast({:update_pi, additional_term, new_sixteen_pow}, {pi, digit_positions, sixteen_pow}) do
+  def handle_call(:next_digit_positions, _from, {pi, digit_positions, digits_pending, exponent_cache}) do
+    {next_digits, remaining}  = Enum.split(digit_positions, @digit_batch_size)
+    digits_pending = Enum.into(next_digits, digits_pending)
+    output_progress(next_digits, digits_pending, pi)
+    {:reply, {next_digits, exponent_cache}, {pi, remaining, digits_pending, exponent_cache}}
+  end
+
+  def handle_cast({:update_pi, digit_position, additional_term, new_sixteen_pow}, {pi, digit_positions, digits_pending, sixteen_pow}) do
     D.set_context(%D.Context{D.get_context | precision: @precision}) 
     {new_sixteen_exp, _} = new_sixteen_pow
     {current_sixteen_exp, _} = sixteen_pow
     highest_sixteen_pow = if new_sixteen_exp > current_sixteen_exp, do: new_sixteen_pow, else: sixteen_pow
+    digits_pending = List.delete(digits_pending, digit_position)
     updated_pi = D.add(pi, additional_term)
-    {:noreply, {updated_pi, digit_positions, highest_sixteen_pow}}
+    {:noreply, {updated_pi, digit_positions, digits_pending, highest_sixteen_pow}}
   end
 
   def init(args) do
@@ -49,8 +59,8 @@ defmodule Elixirpi.Collector do
     GenServer.call(process_pid(), :next_digit_positions)
   end
 
-  def update_pi(additional_term, exponent_cache) do
-    GenServer.cast(process_pid(), {:update_pi, additional_term, exponent_cache})
+  def update_pi(digit_position, additional_term, exponent_cache) do
+    GenServer.cast(process_pid(), {:update_pi, digit_position, additional_term, exponent_cache})
   end
 
   def precision do
@@ -64,19 +74,19 @@ defmodule Elixirpi.Collector do
   ##############################################################################
   # Private helper functions:
   ##############################################################################
-  defp output_progress([], pi) do
+  defp output_progress([], [], pi) do
     IO.puts "No more digits to process."
     if !File.exists?("pi.txt") do
       IO.puts "Writing pi.txt"
       {:ok, file} = File.open "pi.txt", [:write]
       pi_string = D.to_string(pi, :normal)
-      IO.binwrite file, String.slice(pi_string, 0..@target_hex_digits+2)
+      IO.binwrite file, String.slice(pi_string, 0..@precision)
       File.close file
     end
   end
 
-  defp output_progress(next_digits, _pi) do
-    IO.puts "Worker to calculate digit positions: #{inspect next_digits}"
+  defp output_progress(next_digits, pending_digits, _pi) do
+    IO.puts "Worker to calculate digit positions: #{inspect next_digits} pending digits #{inspect pending_digits}"
   end
 
 

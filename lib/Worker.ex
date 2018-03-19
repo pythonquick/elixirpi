@@ -33,16 +33,17 @@ defmodule Elixirpi.Worker do
   def process_next_digits(precision) do
     D.set_context(%D.Context{D.get_context | precision: precision})
     {next_digit_positions, exponent_cache} = Collector.next_digits
+    IO.puts "Processing digit positions: #{inspect next_digit_positions}"
 
     # Calculate each digit term in concurrent stream of Tasks:
     Task.async_stream(next_digit_positions, fn digit_position ->
       D.set_context(%D.Context{D.get_context | precision: precision})
       exponent = digit_position
       sixteen_power = calc_sixteen_power(exponent, exponent_cache)
-      {term(digit_position, sixteen_power), {exponent, sixteen_power}}
+      {digit_position, term(digit_position, sixteen_power), {exponent, sixteen_power}}
     end, timeout: 100000)
-    |> Enum.each(fn {:ok, {next_term, exponent_cache}} ->
-      Collector.update_pi(next_term, exponent_cache)
+    |> Enum.each(fn {:ok, {digit_position, next_term, exponent_cache}} ->
+      Collector.update_pi(digit_position, next_term, exponent_cache)
     end)
 
     next_digit_positions

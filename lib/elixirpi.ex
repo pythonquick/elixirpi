@@ -1,6 +1,7 @@
 defmodule Elixirpi do
 
   def main(args) do
+    IO.puts "#{inspect args}"
     args |> parse_args |> process
   end
 
@@ -16,6 +17,7 @@ defmodule Elixirpi do
   end
 
   def process(options) do
+    IO.puts "options: #{inspect options}"
     case options do
       [mode: "server", name: node_name] ->
         start_server(node_name)
@@ -38,6 +40,7 @@ defmodule Elixirpi do
   end
 
   defp start_server(node_name) do
+    IO.puts "Starting server with name #{node_name}"
     Node.start String.to_atom(node_name)
     Elixirpi.Collector.start()
   end
