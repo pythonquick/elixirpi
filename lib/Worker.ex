@@ -11,6 +11,11 @@ defmodule Elixirpi.Worker do
   @d8 D.new(8)
   @d16 D.new(16)
 
+  def run() do
+    precision = Collector.precision
+    keep_processing_digits(precision)
+  end
+
   defp calc_sixteen_power(0, _) do
     @d1
   end
@@ -20,7 +25,7 @@ defmodule Elixirpi.Worker do
     Enum.reduce(cache_exp+1..exp, cache_sixteen_power, fn(_, acc) -> D.mult(acc, @d16) end)
   end
 
-  def term(digit_position, sixteen_power) do
+  defp term(digit_position, sixteen_power) do
     digit_position_decimal = D.new(digit_position)
     eight_times_digit_pos = D.mult(@d8, digit_position_decimal)
     D.div(@d4, eight_times_digit_pos |> D.add(@d1))
@@ -30,17 +35,11 @@ defmodule Elixirpi.Worker do
       |> D.div(sixteen_power)
   end
 
-  def process_next_digits(precision) do
+  defp process_next_digits(precision) do
     D.set_context(%D.Context{D.get_context | precision: precision})
     {next_digit_positions, exponent_cache} = Collector.next_digits
 
-    # Calculate each digit term in concurrent stream of Tasks:
-    Task.async_stream(next_digit_positions, fn digit_position ->
-      D.set_context(%D.Context{D.get_context | precision: precision})
-      exponent = digit_position
-      sixteen_power = calc_sixteen_power(exponent, exponent_cache)
-      {digit_position, term(digit_position, sixteen_power), {exponent, sixteen_power}}
-    end, timeout: 100000)
+    calc_digit_positions(next_digit_positions, precision, exponent_cache)
     |> Enum.each(fn {:ok, {digit_position, next_term, exponent_cache}} ->
       Collector.update_pi(digit_position, next_term, exponent_cache)
       IO.write('.')
@@ -49,7 +48,24 @@ defmodule Elixirpi.Worker do
     next_digit_positions
   end
 
-  def keep_processing_digits(precision) do
+  defp calc_digit_positions(digit_positions, precision, exponent_cache) do
+    # Following calculates digits in streams of tasks - in parallel
+    Task.async_stream(digit_positions, fn digit_position ->
+      calc_digit_position(digit_position, precision, exponent_cache)
+    end, timeout: 100000)
+    # Following calculates digit positions sequentially - not in parallel
+    #Enum.map(digit_positions, fn digit_position -> 
+    #  {:ok, calc_digit_position(digit_position, precision, exponent_cache)}
+    #end)
+  end
+
+  defp calc_digit_position(digit_position, precision, exponent_cache) do
+      D.set_context(%D.Context{D.get_context | precision: precision})
+      power_of_sixteen = calc_sixteen_power(digit_position, exponent_cache)
+      {digit_position, term(digit_position, power_of_sixteen), {digit_position, power_of_sixteen}}
+  end
+
+  defp keep_processing_digits(precision) do
     next_digit_positions = process_next_digits(precision)
     case next_digit_positions do
       [] -> IO.puts "Worker finished"
@@ -57,8 +73,4 @@ defmodule Elixirpi.Worker do
     end
   end
 
-  def run() do
-    precision = Collector.precision
-    keep_processing_digits(precision)
-  end
 end

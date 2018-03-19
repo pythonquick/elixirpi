@@ -2,8 +2,8 @@ defmodule Elixirpi.Collector do
   use GenServer
   alias Decimal, as: D
   @process_name :collector_process_name
-  @digit_batch_size 40
-  @target_hex_digits 10000
+  @digit_batch_size 100
+  @target_hex_digits 5000
   @precision div(@target_hex_digits * 4, 3)
 
   def start do
