@@ -33,7 +33,6 @@ defmodule Elixirpi.Worker do
   def process_next_digits(precision) do
     D.set_context(%D.Context{D.get_context | precision: precision})
     {next_digit_positions, exponent_cache} = Collector.next_digits
-    IO.puts "Processing digit positions: #{inspect next_digit_positions}"
 
     # Calculate each digit term in concurrent stream of Tasks:
     Task.async_stream(next_digit_positions, fn digit_position ->
@@ -44,6 +43,7 @@ defmodule Elixirpi.Worker do
     end, timeout: 100000)
     |> Enum.each(fn {:ok, {digit_position, next_term, exponent_cache}} ->
       Collector.update_pi(digit_position, next_term, exponent_cache)
+      IO.write('.')
     end)
 
     next_digit_positions

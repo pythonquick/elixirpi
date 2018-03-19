@@ -2,8 +2,8 @@ defmodule Elixirpi.Collector do
   use GenServer
   alias Decimal, as: D
   @process_name :collector_process_name
-  @digit_batch_size 8
-  @target_hex_digits 1000
+  @digit_batch_size 40
+  @target_hex_digits 10000
   @precision div(@target_hex_digits * 4, 3)
 
   def start do
@@ -24,17 +24,17 @@ defmodule Elixirpi.Collector do
   ##############################################################################
 
   def handle_call(:next_digit_positions, _from, {pi, [], digits_pending, exponent_cache}) do
-    {next_digits, remaining}  = Enum.split(digits_pending, @digit_batch_size)
-    digits_pending = remaining ++ next_digits
-    output_progress(next_digits, digits_pending, pi)
-    {:reply, {next_digits, exponent_cache}, {pi, [], digits_pending, exponent_cache}}
+    {assigned_digits, remaining}  = Enum.split(digits_pending, @digit_batch_size)
+    digits_pending = remaining ++ assigned_digits
+    output_progress(assigned_digits, digits_pending, pi)
+    {:reply, {assigned_digits, exponent_cache}, {pi, [], digits_pending, exponent_cache}}
   end
 
   def handle_call(:next_digit_positions, _from, {pi, digit_positions, digits_pending, exponent_cache}) do
-    {next_digits, remaining}  = Enum.split(digit_positions, @digit_batch_size)
-    digits_pending = Enum.into(next_digits, digits_pending)
-    output_progress(next_digits, digits_pending, pi)
-    {:reply, {next_digits, exponent_cache}, {pi, remaining, digits_pending, exponent_cache}}
+    {assigned_digits, remaining}  = Enum.split(digit_positions, @digit_batch_size)
+    digits_pending = Enum.into(assigned_digits, digits_pending)
+    output_progress(assigned_digits, digits_pending, pi)
+    {:reply, {assigned_digits, exponent_cache}, {pi, remaining, digits_pending, exponent_cache}}
   end
 
   def handle_cast({:update_pi, digit_position, additional_term, new_sixteen_pow}, {pi, digit_positions, digits_pending, sixteen_pow}) do
@@ -75,19 +75,17 @@ defmodule Elixirpi.Collector do
   # Private helper functions:
   ##############################################################################
   defp output_progress([], [], pi) do
-    IO.puts "No more digits to process."
-    if !File.exists?("pi.txt") do
-      IO.puts "Writing pi.txt"
-      {:ok, file} = File.open "pi.txt", [:write]
-      pi_string = D.to_string(pi, :normal)
-      IO.binwrite file, String.slice(pi_string, 0..@precision)
-      File.close file
-    end
+    file_name = "pi-#{@target_hex_digits}.txt"
+    IO.puts "Processed all digits. Writing #{file_name}"
+    {:ok, file} = File.open file_name, [:write]
+    pi_string = D.to_string(pi, :normal)
+    IO.binwrite file, String.slice(pi_string, 0..@target_hex_digits + 2)
+    File.close file
+    System.stop
   end
 
-  defp output_progress(next_digits, pending_digits, _pi) do
-    IO.puts "Worker to calculate digit positions: #{inspect next_digits} pending digits #{inspect pending_digits}"
+  defp output_progress(assigned_digits, _pending_digits, _pi) do
+    [first_assigned_digit | _tail] = assigned_digits
+    IO.puts "First digit of next digit batch assigned: #{first_assigned_digit}."
   end
-
-
 end
