@@ -49,11 +49,12 @@ defmodule Elixirpi.Worker do
   end
 
   defp calc_digit_positions(digit_positions, precision, exponent_cache) do
-    # Following calculates digits in streams of tasks - in parallel
+    # Following calculates digits in streams of parallel running tasks
     Task.async_stream(digit_positions, fn digit_position ->
       calc_digit_position(digit_position, precision, exponent_cache)
     end, timeout: 100000)
-    # Following calculates digit positions sequentially - not in parallel
+
+    # In contrast, the following calculates digit positions sequentially. Slow!
     #Enum.map(digit_positions, fn digit_position -> 
     #  {:ok, calc_digit_position(digit_position, precision, exponent_cache)}
     #end)
@@ -72,5 +73,4 @@ defmodule Elixirpi.Worker do
       _ -> keep_processing_digits(precision)
     end
   end
-
 end

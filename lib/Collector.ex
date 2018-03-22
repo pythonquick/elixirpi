@@ -3,7 +3,7 @@ defmodule Elixirpi.Collector do
   alias Decimal, as: D
   @process_name :collector_process_name
   @digit_batch_size 100
-  @target_hex_digits 5000
+  @target_hex_digits 2000
   @precision div(@target_hex_digits * 4, 3)
 
   def start do
