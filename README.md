@@ -41,7 +41,12 @@ Run the following `mix` command to create a "elixirpi" executable:
 
 ## Run the server node
 
-The server node starts up a GenServer in the Elixirpi.Collector module. 
+The server node starts up a GenServer in the Elixirpi.Collector module.
+
+Make sure the `epmd` daemon is running. This is the Erlang name server that will
+allow nodes to be named and look up other nodes on the network:
+    epmd -daemon
+
 Run the executable with the following switches, to start the server:
 
     ./elixirpi --mode=server --name=master@gmac.local
@@ -59,6 +64,10 @@ work is a list of digit positions of pi to calculate). Once the worker
 calculated the result, it sends back the result to the server node and asks for
 the next chunk of work.
 
+Make sure the `epmd` daemon is running. This is the Erlang name server that will
+allow nodes to be named and look up other nodes on the network:
+    epmd -daemon
+
 Run the executable with the following switches, to start the worker:
 
     ./elixirpi --mode=worker --name=worker1@gmac.local
@@ -66,7 +75,7 @@ Run the executable with the following switches, to start the worker:
 Note: in the example above, the node name "pi@alpha.local" uses the host name
 "alpha.local". Change the name value to match the host name of your machine.
 
-## 
+--------------------------------------------------------------------------------
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
